@@ -85,6 +85,18 @@ const createReplyRequest = (flairs?: unknown[]) =>
     },
   }) as DecryptedChallengeRequestMessageTypeWithCommunityAuthor;
 
+const createChallengeAnswerRequest = (answer: string) =>
+  ({
+    challengeAnswers: [answer],
+    comment: {
+      content: "flag answer request",
+      signature: {
+        publicKey: "author-public-key-1",
+        signature: "comment-signature-1",
+      },
+    },
+  }) as DecryptedChallengeRequestMessageTypeWithCommunityAuthor;
+
 const testPrivateKey = Buffer.alloc(32, 7).toString("base64");
 let community: LocalCommunity;
 
@@ -140,6 +152,9 @@ describe("5chan flag selection parsing", () => {
       code: "AJ",
       label: "Applejack",
     });
+    expect(
+      parseFiveChanFlagSelection("bitsocial-flags:5chan:flag:country:auto"),
+    ).toMatchObject({ type: "country", code: "AUTO" });
   });
 
   it("extracts explicit flag requests from comment flair fields", () => {
@@ -155,6 +170,11 @@ describe("5chan flag selection parsing", () => {
       type: "pony",
       code: "AJ",
     });
+    expect(
+      getRequestedFlag(
+        createChallengeAnswerRequest("bitsocial-flags:5chan:flag:country:auto"),
+      ),
+    ).toMatchObject({ type: "country", code: "AUTO" });
   });
 });
 

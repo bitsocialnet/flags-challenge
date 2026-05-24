@@ -155,6 +155,7 @@ const PONY_FLAGS = new Map<string, string>(PONY_FLAG_ENTRIES);
 const COUNTRY_CODE_PATTERN = /^[A-Z]{2}$/;
 const FLAG_TEXT_PATTERN =
   /^(?:flag:)?(country|geo|pol|political|meme|memeflag|memeflags|pony|mlp):([a-z0-9-]+)$/i;
+const FLAG_CHALLENGE_ANSWER_PREFIX = "bitsocial-flags:5chan:";
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
@@ -242,7 +243,12 @@ export const parseFiveChanFlagSelection = (
   if (typeof value === "string") {
     const trimmed = value.trim();
     if (!trimmed || trimmed.toLowerCase() === "none") return undefined;
-    const match = trimmed.match(FLAG_TEXT_PATTERN);
+    const flagText = trimmed
+      .toLowerCase()
+      .startsWith(FLAG_CHALLENGE_ANSWER_PREFIX)
+      ? trimmed.slice(FLAG_CHALLENGE_ANSWER_PREFIX.length)
+      : trimmed;
+    const match = flagText.match(FLAG_TEXT_PATTERN);
     return match ? getFiveChanFlag(match[1], match[2]) : undefined;
   }
 
@@ -266,6 +272,10 @@ const hasExplicitFlagSelection = (value: unknown) => {
   return value !== undefined && value !== null;
 };
 
+const hasExplicitFlagChallengeAnswer = (value: unknown) =>
+  typeof value === "string" &&
+  value.trim().toLowerCase().startsWith(FLAG_CHALLENGE_ANSWER_PREFIX);
+
 const getPublication = (
   request: DecryptedChallengeRequestMessageTypeWithCommunityAuthor,
 ) => {
@@ -277,6 +287,19 @@ const getPublication = (
 export const getRequestedFlagResult = (
   request: DecryptedChallengeRequestMessageTypeWithCommunityAuthor,
 ): RequestedFlagResult => {
+  if (Array.isArray(request.challengeAnswers)) {
+    for (const answer of request.challengeAnswers) {
+      if (!hasExplicitFlagChallengeAnswer(answer)) {
+        continue;
+      }
+
+      const flag = parseFiveChanFlagSelection(answer);
+      return flag
+        ? { status: "flag", flag }
+        : { status: "invalid", value: answer };
+    }
+  }
+
   const publication = getPublication(request);
   if (!publication) return { status: "none" };
 
