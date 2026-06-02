@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.1.1](https://github.com/bitsocialnet/flags-challenge/compare/v0.1.0...v0.1.1) (2026-06-02)
+
+### Bug Fixes
+
+- **diagnostics:** log flag challenge decisions ([8afc872](https://github.com/bitsocialnet/flags-challenge/commit/8afc8723818ff7f5a86ba8943f0c7c795aaaf0a8))
+
 ## 0.1.0 (2026-05-24)
 
 ### Features

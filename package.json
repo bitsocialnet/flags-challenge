@@ -1,6 +1,6 @@
 {
   "name": "@bitsocial/flags-challenge",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Verified flag issuer challenge for Bitsocial communities",
   "keywords": [
     "bitsocial",
