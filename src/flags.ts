@@ -16,6 +16,12 @@ export type VerifiedFlag = RequestedFlag & {
   signature: Record<string, unknown>;
 };
 
+export type RequestedFlagSource =
+  | "challengeAnswers"
+  | "comment.flag"
+  | "comment.flair"
+  | "comment.flairs";
+
 export type FlagAssertion = {
   flag: {
     type: FiveChanFlagKind;
@@ -33,8 +39,8 @@ export type FlagAssertion = {
 
 export type RequestedFlagResult =
   | { status: "none" }
-  | { status: "invalid"; value: unknown }
-  | { status: "flag"; flag: RequestedFlag };
+  | { status: "invalid"; value: unknown; source: RequestedFlagSource }
+  | { status: "flag"; flag: RequestedFlag; source: RequestedFlagSource };
 
 const POLITICAL_FLAG_ENTRIES = [
   ["AC", "Anarcho-Capitalist"],
@@ -295,28 +301,31 @@ export const getRequestedFlagResult = (
 
       const flag = parseFiveChanFlagSelection(answer);
       return flag
-        ? { status: "flag", flag }
-        : { status: "invalid", value: answer };
+        ? { status: "flag", flag, source: "challengeAnswers" }
+        : { status: "invalid", value: answer, source: "challengeAnswers" };
     }
   }
 
   const publication = getPublication(request);
   if (!publication) return { status: "none" };
 
-  for (const candidate of [publication.flag, publication.flair]) {
+  for (const [source, candidate] of [
+    ["comment.flag", publication.flag],
+    ["comment.flair", publication.flair],
+  ] as const) {
     const flag = parseFiveChanFlagSelection(candidate);
-    if (flag) return { status: "flag", flag };
+    if (flag) return { status: "flag", flag, source };
     if (hasExplicitFlagSelection(candidate)) {
-      return { status: "invalid", value: candidate };
+      return { status: "invalid", value: candidate, source };
     }
   }
 
   if (Array.isArray(publication.flairs)) {
     for (const flair of publication.flairs) {
       const flag = parseFiveChanFlagSelection(flair);
-      if (flag) return { status: "flag", flag };
+      if (flag) return { status: "flag", flag, source: "comment.flairs" };
       if (hasExplicitFlagSelection(flair)) {
-        return { status: "invalid", value: flair };
+        return { status: "invalid", value: flair, source: "comment.flairs" };
       }
     }
   }

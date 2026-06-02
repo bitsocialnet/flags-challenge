@@ -5,6 +5,7 @@ import * as cborg from "cborg";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import ChallengeFileFactory, {
   getRequestedFlag,
+  getRequestedFlagResult,
   parseFiveChanFlagSelection,
 } from "../src/index.js";
 import { getPublicKeyFromPrivateKey } from "../src/pkc-js-signer.js";
@@ -175,6 +176,29 @@ describe("5chan flag selection parsing", () => {
         createChallengeAnswerRequest("bitsocial-flags:5chan:flag:country:auto"),
       ),
     ).toMatchObject({ type: "country", code: "AUTO" });
+  });
+
+  it("reports where requested flags were found", () => {
+    expect(
+      getRequestedFlagResult(createCommentRequest("flag:pol:AN")),
+    ).toMatchObject({
+      status: "flag",
+      source: "comment.flair",
+    });
+    expect(
+      getRequestedFlagResult(createReplyRequest([{ text: "flag:pony:AJ" }])),
+    ).toMatchObject({
+      status: "flag",
+      source: "comment.flairs",
+    });
+    expect(
+      getRequestedFlagResult(
+        createChallengeAnswerRequest("bitsocial-flags:5chan:flag:country:auto"),
+      ),
+    ).toMatchObject({
+      status: "flag",
+      source: "challengeAnswers",
+    });
   });
 });
 

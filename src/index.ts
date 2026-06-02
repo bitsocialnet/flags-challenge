@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { format } from "node:util";
 import * as cborg from "cborg";
 import Logger from "@pkcprotocol/pkc-logger";
 import type {
@@ -27,6 +28,8 @@ import {
 import { signBufferEd25519 } from "./pkc-js-signer.js";
 
 const log = Logger("bitsocial:community:challenge:flags");
+const LOGGER_NAMESPACE = "bitsocial:community:challenge:flags";
+const FLAG_CHALLENGE_ANSWER_PREFIX = "bitsocial-flags:5chan:";
 const LEGACY_RUNTIME_COMMUNITY_KEY = String.fromCharCode(
   115,
   117,
@@ -86,6 +89,28 @@ const numberValue = (value: unknown): number | undefined =>
 const recordValue = (value: unknown): Record<string, unknown> | undefined =>
   isRecord(value) ? value : undefined;
 
+const shouldWriteConsoleLogs = () =>
+  process.env.NODE_ENV !== "test" && !process.env.VITEST;
+
+const writeConsoleLog = (
+  level: "info" | "error",
+  formatter: string,
+  ...args: unknown[]
+) => {
+  if (!shouldWriteConsoleLogs()) return;
+  console[level](`${LOGGER_NAMESPACE} ${format(formatter, ...args)}`);
+};
+
+const logInfo = (formatter: string, ...args: unknown[]) => {
+  log(formatter, ...args);
+  writeConsoleLog("info", formatter, ...args);
+};
+
+const logError = (formatter: string, ...args: unknown[]) => {
+  log.error(formatter, ...args);
+  writeConsoleLog("error", formatter, ...args);
+};
+
 const trimTrailingSlash = (value: string) => value.replace(/\/+$/, "");
 
 const nowSeconds = () => Math.floor(Date.now() / 1000);
@@ -119,6 +144,104 @@ const getRuntimeCommunity = (
   return isRecord(legacyCommunity)
     ? (legacyCommunity as RuntimeCommunity)
     : undefined;
+};
+
+const getCommunityLabel = (community: RuntimeCommunity | undefined) =>
+  stringValue(community?.address) ?? stringValue(community?.title) ?? "unknown";
+
+const getRequestPublication = (
+  request: unknown,
+):
+  | {
+      publicationType: "comment" | "commentEdit";
+      publication: Record<string, unknown>;
+    }
+  | undefined => {
+  if (!isRecord(request)) return undefined;
+  if (isRecord(request.comment)) {
+    return { publicationType: "comment", publication: request.comment };
+  }
+  if (isRecord(request.commentEdit)) {
+    return {
+      publicationType: "commentEdit",
+      publication: request.commentEdit,
+    };
+  }
+  return undefined;
+};
+
+const getChallengeAnswers = (request: unknown): unknown[] =>
+  isRecord(request) && Array.isArray(request.challengeAnswers)
+    ? request.challengeAnswers
+    : [];
+
+const hasDefinedProperty = (
+  record: Record<string, unknown> | undefined,
+  key: string,
+) =>
+  record !== undefined &&
+  Object.prototype.hasOwnProperty.call(record, key) &&
+  record[key] !== undefined &&
+  record[key] !== null;
+
+const hasExplicitFlagAnswer = (answer: unknown) =>
+  typeof answer === "string" &&
+  answer.trim().toLowerCase().startsWith(FLAG_CHALLENGE_ANSWER_PREFIX);
+
+const summarizeChallengeRequest = (request: unknown) => {
+  const requestRecord = recordValue(request);
+  const challengeAnswers = getChallengeAnswers(request);
+  const publicationInfo = getRequestPublication(request);
+  const publication = publicationInfo?.publication;
+  const flairs = Array.isArray(publication?.flairs)
+    ? publication.flairs
+    : undefined;
+
+  return {
+    hasComment: Boolean(recordValue(requestRecord?.comment)),
+    hasCommentEdit: Boolean(recordValue(requestRecord?.commentEdit)),
+    challengeAnswerCount: challengeAnswers.length,
+    explicitFlagAnswerCount: challengeAnswers.filter(hasExplicitFlagAnswer)
+      .length,
+    publicationType: publicationInfo?.publicationType,
+    hasPublicationFlag: hasDefinedProperty(publication, "flag"),
+    hasPublicationFlair: hasDefinedProperty(publication, "flair"),
+    publicationFlairsCount: flairs?.length ?? 0,
+    hasCommunityName: Boolean(stringValue(publication?.communityName)),
+    hasCommunityPublicKey: Boolean(
+      stringValue(publication?.communityPublicKey),
+    ),
+    parentCidPresent: Boolean(stringValue(publication?.parentCid)),
+    postCidPresent: Boolean(stringValue(publication?.postCid)),
+    signaturePresent: Boolean(recordValue(publication?.signature)),
+  };
+};
+
+const summarizeFlag = (flag: RequestedFlag | VerifiedFlag) => ({
+  type: flag.type,
+  code: flag.code,
+  text: flag.text,
+  label: flag.label,
+});
+
+const summarizeInvalidFlagValue = (value: unknown): Record<string, unknown> => {
+  if (typeof value === "string") {
+    return {
+      kind: "string",
+      length: value.length,
+      hasFlagPrefix: hasExplicitFlagAnswer(value),
+    };
+  }
+
+  if (Array.isArray(value)) {
+    return { kind: "array", length: value.length };
+  }
+
+  if (isRecord(value)) {
+    return { kind: "object", keys: Object.keys(value).sort().slice(0, 10) };
+  }
+
+  return { kind: value === null ? "null" : typeof value };
 };
 
 const createRequestSignature = async (
@@ -285,25 +408,65 @@ const getChallenge = async (
 ): Promise<ChallengeInput | ChallengeResultInput> => {
   const { challengeRequestMessage, challengeSettings } = args;
   const options = parseOptions(challengeSettings);
+  const runtimeCommunity = getRuntimeCommunity(args);
+  const communityLabel = getCommunityLabel(runtimeCommunity);
+  const requestSummary = summarizeChallengeRequest(challengeRequestMessage);
   const requestedFlagResult = getRequestedFlagResult(challengeRequestMessage);
+  logInfo(
+    "getChallenge community=%s allowedFlags=%o request=%o",
+    communityLabel,
+    options.allowedFlags,
+    requestSummary,
+  );
 
   if (requestedFlagResult.status === "none") {
+    logInfo(
+      "No requested flag found; allowing without iframe. community=%s request=%o",
+      communityLabel,
+      requestSummary,
+    );
     return allow();
   }
 
   if (requestedFlagResult.status === "invalid") {
+    logError(
+      "Invalid requested flag; rejecting. community=%s source=%s invalid=%o request=%o",
+      communityLabel,
+      requestedFlagResult.source,
+      summarizeInvalidFlagValue(requestedFlagResult.value),
+      requestSummary,
+    );
     return reject(options, "Requested flag is not supported.");
   }
 
-  const { flag: requestedFlag } = requestedFlagResult;
+  const { flag: requestedFlag, source: requestedFlagSource } =
+    requestedFlagResult;
+  logInfo(
+    "Requested flag found. community=%s source=%s flag=%o",
+    communityLabel,
+    requestedFlagSource,
+    summarizeFlag(requestedFlag),
+  );
 
   if (!isAllowed(requestedFlag, options)) {
+    logError(
+      "Requested flag family is not allowed; rejecting. community=%s source=%s flag=%o allowedFlags=%o",
+      communityLabel,
+      requestedFlagSource,
+      summarizeFlag(requestedFlag),
+      options.allowedFlags,
+    );
     return reject(options, `Flag family ${requestedFlag.type} is not allowed.`);
   }
 
-  const runtimeCommunity = getRuntimeCommunity(args);
   const signer = runtimeCommunity?.signer;
   if (!signer) {
+    logError(
+      "Community signer missing; rejecting flag challenge. community=%s source=%s flag=%o",
+      communityLabel,
+      requestedFlagSource,
+      summarizeFlag(requestedFlag),
+    );
     return reject(options, "Community signer is required.");
   }
 
@@ -330,8 +493,21 @@ const getChallenge = async (
       signature: evaluateSignature,
     },
   });
+  logInfo(
+    "Returning flag iframe challenge. community=%s sessionId=%s source=%s flag=%o",
+    communityLabel,
+    sessionId,
+    requestedFlagSource,
+    summarizeFlag(requestedFlag),
+  );
 
   const verify = async (_answer: string): Promise<ChallengeResultInput> => {
+    logInfo(
+      "Verifying flag challenge. community=%s sessionId=%s requestedFlag=%o",
+      communityLabel,
+      sessionId,
+      summarizeFlag(requestedFlag),
+    );
     const verifyTimestamp = nowSeconds();
     const verifyPropsToSign = { sessionId, timestamp: verifyTimestamp };
     const signature = await createRequestSignature(verifyPropsToSign, signer);
@@ -349,11 +525,22 @@ const getChallenge = async (
       );
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown error";
-      log.error("Failed to verify flag challenge: %s", message);
+      logError(
+        "Failed to verify flag challenge. community=%s sessionId=%s error=%s",
+        communityLabel,
+        sessionId,
+        message,
+      );
       return reject(options, message);
     }
 
     if (!verifyResponse.success) {
+      logError(
+        "Flag issuer verification failed. community=%s sessionId=%s error=%s",
+        communityLabel,
+        sessionId,
+        verifyResponse.error || "Challenge not completed.",
+      );
       return reject(
         options,
         verifyResponse.error || "Challenge not completed.",
@@ -366,9 +553,22 @@ const getChallenge = async (
       options,
     );
     if (!verifiedFlag) {
+      logError(
+        "Flag issuer returned invalid assertion. community=%s sessionId=%s requestedFlag=%o",
+        communityLabel,
+        sessionId,
+        summarizeFlag(requestedFlag),
+      );
       return reject(options, "Issuer returned an invalid flag assertion.");
     }
 
+    logInfo(
+      "Flag verification succeeded. community=%s sessionId=%s verifiedFlag=%o emitFlair=%s",
+      communityLabel,
+      sessionId,
+      summarizeFlag(verifiedFlag),
+      String(options.emitFlair),
+    );
     return buildResult(verifiedFlag, options);
   };
 
