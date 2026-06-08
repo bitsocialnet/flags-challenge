@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.1.2](https://github.com/bitsocialnet/flags-challenge/compare/v0.1.1...v0.1.2) (2026-06-08)
+
+### Bug Fixes
+
+- **flags:** skip issuer iframe for board-choice flags ([#1](https://github.com/bitsocialnet/flags-challenge/issues/1)) ([63332bc](https://github.com/bitsocialnet/flags-challenge/commit/63332bc749b26fc02e934a4163175a74d0967dbe))
+
 ## [0.1.1](https://github.com/bitsocialnet/flags-challenge/compare/v0.1.0...v0.1.1) (2026-06-02)
 
 ### Bug Fixes
