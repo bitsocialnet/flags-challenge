@@ -344,8 +344,34 @@ describe("Bitsocial flags challenge package", () => {
     });
   });
 
-  it("emits signed 5chan memeflag data", async () => {
+  it("accepts valid memeflags without an issuer iframe", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
     const result = await runChallenge(createCommentRequest("flag:pol:AC"));
+
+    expect(result).toEqual({ success: true });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("accepts valid pony flags without an issuer iframe or community signer", async () => {
+    const result = await runChallenge(
+      createReplyRequest([{ text: "flag:pony:AJ" }]),
+      {},
+      { address: "pony-posting.bso" },
+    );
+
+    expect(result).toEqual({ success: true });
+  });
+
+  it("rejects service responses that do not match a requested country flag", async () => {
+    const result = await runChallenge(
+      createCommentRequest({
+        type: "country",
+        code: "auto",
+        text: "flag:country:auto",
+      }),
+    );
 
     if (!("verify" in result)) throw new Error("Expected verify callback");
 
@@ -356,48 +382,7 @@ describe("Bitsocial flags challenge package", () => {
           type: "pol",
           code: "AC",
           issuer: "flags.5chan.app",
-          issuedAt: 1770000100,
           signature: { signature: "signed-ac" },
-        },
-      }),
-    );
-
-    await expect(result.verify("")).resolves.toMatchObject({
-      success: true,
-      comment: {
-        "5chan": {
-          memeflag: "AC",
-          flag: {
-            type: "pol",
-            code: "AC",
-            label: "Anarcho-Capitalist",
-          },
-          signature: { signature: "signed-ac" },
-        },
-      },
-      commentUpdate: {
-        author: {
-          community: {
-            flairs: [{ text: "flag:pol:AC", type: "pol", code: "AC" }],
-          },
-        },
-      },
-    });
-  });
-
-  it("rejects service responses that do not match the requested flag", async () => {
-    const result = await runChallenge(createCommentRequest("flag:pony:AJ"));
-
-    if (!("verify" in result)) throw new Error("Expected verify callback");
-
-    stubFetch(
-      createResponse({
-        success: true,
-        flag: {
-          type: "pony",
-          code: "RD",
-          issuer: "flags.5chan.app",
-          signature: { signature: "signed-rd" },
         },
       }),
     );

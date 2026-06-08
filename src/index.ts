@@ -318,6 +318,9 @@ const allow = (): ChallengeResultInput => ({ success: true });
 const isAllowed = (flag: RequestedFlag, options: ParsedOptions) =>
   options.allowedFlags.includes(flag.type);
 
+const requiresIssuerVerification = (flag: RequestedFlag) =>
+  flag.type === "country";
+
 const getVerifyResponseFlagInput = (
   response: Extract<VerifyResponse, { success: true }>,
 ) => {
@@ -457,6 +460,16 @@ const getChallenge = async (
       options.allowedFlags,
     );
     return reject(options, `Flag family ${requestedFlag.type} is not allowed.`);
+  }
+
+  if (!requiresIssuerVerification(requestedFlag)) {
+    logInfo(
+      "Requested board-choice flag does not require issuer iframe; allowing. community=%s source=%s flag=%o",
+      communityLabel,
+      requestedFlagSource,
+      summarizeFlag(requestedFlag),
+    );
+    return allow();
   }
 
   const signer = runtimeCommunity?.signer;

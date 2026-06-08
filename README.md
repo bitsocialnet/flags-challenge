@@ -4,12 +4,14 @@
 
 Verified flag issuer challenge for Bitsocial communities and clients.
 
-This package runs on a Bitsocial community owner node as a challenge. It is not specific to 5chan: any Bitsocial client can use the same challenge pattern with its own issuer service, namespace, and flag profile. The first bundled profile is the 5chan profile, issued by `flags.5chan.app`, for country flags, `/pol/` memeflags, and `/mlp/` pony flags.
+This package runs on a Bitsocial community owner node as a challenge. It is not specific to 5chan: any Bitsocial client can use the same challenge pattern with its own issuer service, namespace, and flag profile. The first bundled profile is the 5chan profile. Country flags are issued by `flags.5chan.app`; `/pol/` memeflags and `/mlp/` pony flags are validated as board-choice flairs without an issuer iframe.
 
-The challenge writes two pieces of data when a flag is verified:
+For issuer-verified country flags, the challenge writes two pieces of data:
 
 - immutable comment data under a client namespace such as `comment["5chan"]`;
 - a compatibility mirror under `commentUpdate.author.community.flairs`, so clients that already render author flairs can show the same flag.
+
+For `/pol/` memeflags and `/mlp/` pony flags, clients should publish the selected flag as normal comment flair data. The challenge validates that the requested family is allowed and that the code is known, then accepts the publication without contacting the issuer service.
 
 The namespace is configurable. For example, a future Seedit profile could write to `comment["seedit"]` while using its own issuer and flag metadata.
 
@@ -83,7 +85,7 @@ Supported 5chan request strings:
 - `flag:pol:AC`
 - `flag:pony:AJ`
 
-Country flags use `auto` because the issuer service must derive the country from the challenge iframe request IP. The challenge does not trust a client-provided country code as proof of location.
+Country flags use `auto` because the issuer service must derive the country from the challenge iframe request IP. The challenge does not trust a client-provided country code as proof of location. `/pol/` memeflags and `/mlp/` pony flags are free user choices, so they do not require the iframe flow.
 
 ## Verified Comment Shape
 
@@ -120,7 +122,7 @@ For a country flag, the challenge returns a result like:
 }
 ```
 
-For `/pol/` memeflags and `/mlp/` pony flags, `comment["5chan"].flag` carries the selected flag and `comment["5chan"].memeflag` or `comment["5chan"].pony` carries the short code.
+For `/pol/` memeflags and `/mlp/` pony flags, clients render the selected flag from the comment flair fields they publish. The challenge does not add a signed `comment["5chan"]` assertion for those board-choice flags.
 
 ## Issuer Service Contract
 
