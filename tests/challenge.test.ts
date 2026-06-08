@@ -8,7 +8,9 @@ import ChallengeFileFactory, {
   getRequestedFlagResult,
   parseFiveChanFlagSelection,
 } from "../src/index.js";
+import { createCountryAutoFlag, normalizeVerifiedFlag } from "../src/flags.js";
 import { getPublicKeyFromPrivateKey } from "../src/pkc-js-signer.js";
+import { parseOptions } from "../src/schema.js";
 
 type MockResponseOptions = {
   ok?: boolean;
@@ -200,6 +202,47 @@ describe("5chan flag selection parsing", () => {
       source: "challengeAnswers",
     });
   });
+
+  it("skips unrelated challenge answers before parsing explicit flag answers", () => {
+    expect(
+      getRequestedFlagResult({
+        challengeAnswers: [
+          "captcha-answer",
+          "bitsocial-flags:5chan:flag:country:auto",
+        ],
+        comment: {
+          content: "mixed challenge answers",
+        },
+      } as DecryptedChallengeRequestMessageTypeWithCommunityAuthor),
+    ).toMatchObject({
+      status: "flag",
+      source: "challengeAnswers",
+      flag: {
+        type: "country",
+        code: "AUTO",
+      },
+    });
+  });
+
+  it("reports invalid explicit flag requests in comment flairs", () => {
+    expect(
+      getRequestedFlagResult(createReplyRequest([{ text: "flag:pony:NOPE" }])),
+    ).toMatchObject({
+      status: "invalid",
+      source: "comment.flairs",
+      value: { text: "flag:pony:NOPE" },
+    });
+  });
+
+  it("normalizes only issuer flags that match the requested selection", () => {
+    const requested = parseFiveChanFlagSelection("flag:pol:AC");
+    if (!requested) throw new Error("Expected requested flag");
+
+    expect(normalizeVerifiedFlag(requested, "flag:pol:AN")).toBeUndefined();
+    expect(
+      normalizeVerifiedFlag(createCountryAutoFlag(), "flag:country:auto"),
+    ).toBeUndefined();
+  });
 });
 
 describe("Bitsocial flags challenge package", () => {
@@ -344,6 +387,54 @@ describe("Bitsocial flags challenge package", () => {
     });
   });
 
+  it("omits mirrored author flairs when emitFlair is disabled", async () => {
+    const result = await runChallenge(
+      createCommentRequest({
+        type: "country",
+        code: "auto",
+        text: "flag:country:auto",
+      }),
+      { emitFlair: "off" },
+    );
+
+    if (!("verify" in result)) throw new Error("Expected verify callback");
+
+    stubFetch(
+      createResponse({
+        success: true,
+        country: "ca",
+        issuer: "flags.5chan.app",
+        signature: {
+          publicKey: "flag-service-public-key",
+          signature: "flag-service-signature",
+          type: "ed25519",
+        },
+      }),
+    );
+
+    await expect(result.verify("")).resolves.toEqual({
+      success: true,
+      comment: {
+        "5chan": {
+          country: "CA",
+          flag: {
+            type: "country",
+            code: "CA",
+            text: "flag:country:ca",
+            label: "CA",
+          },
+          issuer: "flags.5chan.app",
+          issuedAt: expect.any(Number),
+          signature: {
+            publicKey: "flag-service-public-key",
+            signature: "flag-service-signature",
+            type: "ed25519",
+          },
+        },
+      },
+    });
+  });
+
   it("accepts valid memeflags without an issuer iframe", async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
@@ -391,5 +482,68 @@ describe("Bitsocial flags challenge package", () => {
       success: false,
       error: expect.stringContaining("invalid flag assertion"),
     });
+  });
+
+  it("rejects country verification when the issuer reports failure", async () => {
+    const result = await runChallenge(
+      createCommentRequest({
+        type: "country",
+        code: "auto",
+        text: "flag:country:auto",
+      }),
+    );
+
+    if (!("verify" in result)) throw new Error("Expected verify callback");
+
+    stubFetch(
+      createResponse({ success: false, error: "Country unavailable." }),
+    );
+
+    await expect(result.verify("")).resolves.toMatchObject({
+      success: false,
+      error: expect.stringContaining("Country unavailable."),
+    });
+  });
+
+  it("rejects country verification when the issuer request fails", async () => {
+    const result = await runChallenge(
+      createCommentRequest({
+        type: "country",
+        code: "auto",
+        text: "flag:country:auto",
+      }),
+    );
+
+    if (!("verify" in result)) throw new Error("Expected verify callback");
+
+    stubFetch(
+      createResponse(
+        { error: "issuer offline" },
+        {
+          ok: false,
+          status: 503,
+        },
+      ),
+    );
+
+    await expect(result.verify("")).resolves.toMatchObject({
+      success: false,
+      error: expect.stringContaining("Bitsocial Flags service error (503)"),
+    });
+  });
+
+  it("accepts array flag-family options and rejects invalid option values", async () => {
+    await expect(
+      runChallenge(createCommentRequest("flag:pony:AJ"), {
+        allowedFlags: ["country", "pol"],
+      }),
+    ).resolves.toMatchObject({
+      success: false,
+      error: expect.stringContaining("pony is not allowed"),
+    });
+
+    expect(() => parseOptions(settings({ emitFlair: "sometimes" }))).toThrow(
+      /Invalid challenge options/,
+    );
   });
 });
