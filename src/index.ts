@@ -423,6 +423,16 @@ const getChallenge = async (
   );
 
   if (requestedFlagResult.status === "none") {
+    // Only new posts and replies carry a flag; edits and other publications are not flag requests.
+    if (options.requireFlag && requestSummary.publicationType === "comment") {
+      logError(
+        "No requested flag found on a board that requires one; rejecting. community=%s request=%o",
+        communityLabel,
+        requestSummary,
+      );
+      return reject(options, "A flag is required on this board.");
+    }
+
     logInfo(
       "No requested flag found; allowing without iframe. community=%s request=%o",
       communityLabel,

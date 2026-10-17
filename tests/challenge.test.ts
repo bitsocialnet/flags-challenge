@@ -256,12 +256,69 @@ describe("Bitsocial flags challenge package", () => {
     expect(options).toContain("issuer");
     expect(options).toContain("namespace");
     expect(options).toContain("allowedFlags");
+    expect(options).toContain("requireFlag");
   });
 
   it("accepts publications without a flag request", async () => {
     const result = await runChallenge(createCommentRequest());
 
     expect(result).toEqual({ success: true });
+  });
+
+  it("rejects posts and replies without a flag request when requireFlag is enabled", async () => {
+    for (const request of [createCommentRequest(), createReplyRequest()]) {
+      await expect(
+        runChallenge(request, { requireFlag: "true" }),
+      ).resolves.toEqual({
+        success: false,
+        error: "Flag verification failed. A flag is required on this board.",
+      });
+    }
+  });
+
+  it("rejects a 'none' flag selection when requireFlag is enabled", async () => {
+    const result = await runChallenge(createCommentRequest("none"), {
+      requireFlag: "true",
+    });
+
+    expect(result).toMatchObject({
+      success: false,
+      error: expect.stringContaining("A flag is required"),
+    });
+  });
+
+  it("still accepts flagged comments and non-comment publications when requireFlag is enabled", async () => {
+    await expect(
+      runChallenge(createCommentRequest("flag:pol:AN"), { requireFlag: true }),
+    ).resolves.toEqual({ success: true });
+
+    await expect(
+      runChallenge(
+        {
+          commentEdit: {
+            commentCid: "comment-cid",
+            content: "edited",
+            signature: {
+              publicKey: "author-public-key-1",
+              signature: "comment-edit-signature-1",
+            },
+          },
+        } as DecryptedChallengeRequestMessageTypeWithCommunityAuthor,
+        { requireFlag: true },
+      ),
+    ).resolves.toEqual({ success: true });
+
+    await expect(
+      runChallenge(
+        {
+          vote: {
+            commentCid: "comment-cid",
+            vote: 1,
+          },
+        } as unknown as DecryptedChallengeRequestMessageTypeWithCommunityAuthor,
+        { requireFlag: true },
+      ),
+    ).resolves.toEqual({ success: true });
   });
 
   it("rejects malformed explicit flag requests", async () => {
@@ -543,6 +600,13 @@ describe("Bitsocial flags challenge package", () => {
     });
 
     expect(() => parseOptions(settings({ emitFlair: "sometimes" }))).toThrow(
+      /Invalid challenge options/,
+    );
+    expect(parseOptions(settings()).requireFlag).toBe(false);
+    expect(parseOptions(settings({ requireFlag: "yes" })).requireFlag).toBe(
+      true,
+    );
+    expect(() => parseOptions(settings({ requireFlag: "maybe" }))).toThrow(
       /Invalid challenge options/,
     );
   });

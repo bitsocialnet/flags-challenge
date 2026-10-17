@@ -14,6 +14,7 @@ export type ParsedOptions = {
   namespace: string;
   profile: "5chan";
   allowedFlags: FiveChanFlagKind[];
+  requireFlag: boolean;
   emitFlair: boolean;
   error: string;
 };
@@ -59,6 +60,13 @@ export const optionInputs = [
     default: "country,pol,pony",
     description: "Comma-separated flag families accepted by this board.",
     placeholder: "country,pol,pony",
+  },
+  {
+    option: "requireFlag",
+    label: "Require flag",
+    default: "false",
+    description: "Reject posts and replies that do not request a flag.",
+    placeholder: "false",
   },
   {
     option: "emitFlair",
@@ -147,6 +155,10 @@ const OptionsSchema: z.ZodType<ParsedOptions> = z.preprocess(
       allowedFlags: z.preprocess(
         resolveAllowedFlags,
         z.array(z.enum(allowedFlagValues)).min(1),
+      ),
+      requireFlag: z.preprocess(
+        (value) => resolveOptionBoolean(value, "requireFlag"),
+        z.boolean(),
       ),
       emitFlair: z.preprocess(
         (value) => resolveOptionBoolean(value, "emitFlair"),
