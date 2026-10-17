@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.1.3](https://github.com/bitsocialnet/flags-challenge/compare/v0.1.2...v0.1.3) (2026-10-17)
+
+### Features
+
+- **flags:** add requireFlag option to reject comments without a flag ([f89d2e5](https://github.com/bitsocialnet/flags-challenge/commit/f89d2e5317187c281f514a3577cec98fafd840f5))
+
+### Bug Fixes
+
+- **deps:** remediate Dependabot alerts [skip github-alerts] ([fd2c740](https://github.com/bitsocialnet/flags-challenge/commit/fd2c740cdfdc78018d3a4d0d7f264f85d9dca6be))
+
 ## [0.1.2](https://github.com/bitsocialnet/flags-challenge/compare/v0.1.1...v0.1.2) (2026-06-08)
 
 ### Bug Fixes
