@@ -255,6 +255,66 @@ describe("5chan flag selection parsing", () => {
     });
   });
 
+  it("ignores flairs that are not flag requests", () => {
+    expect(
+      getRequestedFlagResult(createReplyRequest([{ text: "flash:game" }])),
+    ).toEqual({ status: "none" });
+    expect(
+      getRequestedFlagResult(createCommentRequest({ text: "Meta" })),
+    ).toEqual({ status: "none" });
+    expect(
+      getRequestedFlagResult(
+        createReplyRequest([{ text: "flash:game" }, { text: "flag:pol:AC" }]),
+      ),
+    ).toMatchObject({
+      status: "flag",
+      source: "comment.flairs",
+      flag: { type: "pol", code: "AC" },
+    });
+  });
+
+  it("checks every flag request on a publication, not just the first", () => {
+    expect(
+      getRequestedFlagResult(
+        createReplyRequest([
+          { text: "flag:pol:AC" },
+          { text: "flag:pony:NOPE" },
+        ]),
+      ),
+    ).toMatchObject({
+      status: "invalid",
+      source: "comment.flairs",
+      value: { text: "flag:pony:NOPE" },
+    });
+    expect(
+      getRequestedFlagResult(
+        createReplyRequest([
+          { text: "flag:pol:AC" },
+          { text: "flag:country:us" },
+        ]),
+      ),
+    ).toMatchObject({
+      status: "invalid",
+      source: "comment.flairs",
+      value: { text: "flag:country:us" },
+    });
+    expect(
+      getRequestedFlagResult({
+        challengeAnswers: ["bitsocial-flags:5chan:flag:country:auto"],
+        comment: {
+          content: "same flag in answer and flair",
+          flairs: [
+            { type: "country", code: "auto", text: "flag:country:auto" },
+          ],
+        },
+      } as unknown as DecryptedChallengeRequestMessageTypeWithCommunityAuthor),
+    ).toMatchObject({
+      status: "flag",
+      source: "challengeAnswers",
+      flag: { type: "country", code: "AUTO" },
+    });
+  });
+
   it("normalizes only issuer flags that match the requested selection", () => {
     const requested = parseFiveChanFlagSelection("flag:pol:AC");
     if (!requested) throw new Error("Expected requested flag");
@@ -397,6 +457,48 @@ describe("Bitsocial flags challenge package", () => {
     ).resolves.toEqual({ success: true });
     await expect(runChallenge(createFlairsEditRequest([]))).resolves.toEqual({
       success: true,
+    });
+  });
+
+  it("treats flairs that are not flag requests as no flag", async () => {
+    await expect(
+      runChallenge(createReplyRequest([{ text: "flash:game" }])),
+    ).resolves.toEqual({ success: true });
+    await expect(
+      runChallenge(
+        createReplyRequest([{ text: "flash:game" }, { text: "flag:pol:AC" }]),
+      ),
+    ).resolves.toEqual({ success: true });
+    await expect(
+      runChallenge(createReplyRequest([{ text: "flash:game" }]), {
+        requireFlag: true,
+      }),
+    ).resolves.toEqual({
+      success: false,
+      error: "Flag verification failed. A flag is required on this board.",
+    });
+  });
+
+  it("rejects publications that request a second, different flag", async () => {
+    await expect(
+      runChallenge(
+        createReplyRequest([{ text: "flag:pol:AC" }, { text: "flag:pony:AJ" }]),
+        { allowedFlags: "pol" },
+      ),
+    ).resolves.toMatchObject({
+      success: false,
+      error: expect.stringContaining("Requested flag is not supported"),
+    });
+    await expect(
+      runChallenge(
+        createReplyRequest([
+          { text: "flag:pol:AC" },
+          { text: "flag:country:us" },
+        ]),
+      ),
+    ).resolves.toMatchObject({
+      success: false,
+      error: expect.stringContaining("Requested flag is not supported"),
     });
   });
 

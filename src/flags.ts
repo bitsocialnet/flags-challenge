@@ -278,6 +278,24 @@ const hasExplicitFlagSelection = (value: unknown) => {
   return value !== undefined && value !== null;
 };
 
+const FLAG_REQUEST_PREFIX_PATTERN =
+  /^(?:bitsocial-flags:5chan:)?(?:flag|country|geo|pol|political|meme|memeflag|memeflags|pony|mlp):/i;
+
+// Flair fields also hold ordinary flairs (topic tags and the like); only
+// values written in flag request syntax, or naming a flag type, are flag
+// requests.
+const looksLikeFlagRequest = (value: unknown): boolean => {
+  if (typeof value === "string") {
+    return FLAG_REQUEST_PREFIX_PATTERN.test(value.trim());
+  }
+  if (!isRecord(value)) return false;
+  return (
+    looksLikeFlagRequest(value.text) ||
+    stringValue(value.type) !== undefined ||
+    stringValue(value.kind) !== undefined
+  );
+};
+
 const hasExplicitFlagChallengeAnswer = (value: unknown) =>
   typeof value === "string" &&
   value.trim().toLowerCase().startsWith(FLAG_CHALLENGE_ANSWER_PREFIX);
@@ -293,49 +311,52 @@ const getPublication = (
 export const getRequestedFlagResult = (
   request: DecryptedChallengeRequestMessageTypeWithCommunityAuthor,
 ): RequestedFlagResult => {
+  const candidates: Array<[RequestedFlagSource, unknown]> = [];
   if (Array.isArray(request.challengeAnswers)) {
     for (const answer of request.challengeAnswers) {
-      if (!hasExplicitFlagChallengeAnswer(answer)) {
-        continue;
+      if (hasExplicitFlagChallengeAnswer(answer)) {
+        candidates.push(["challengeAnswers", answer]);
       }
-
-      const flag = parseFiveChanFlagSelection(answer);
-      if (!flag) {
-        return { status: "invalid", value: answer, source: "challengeAnswers" };
-      }
-      // Board-choice flags are shown from the comment's own flag fields and
-      // this challenge adds nothing for them, so a challenge answer alone
-      // would leave the comment without that flag.
-      if (flag.type !== "country") continue;
-      return { status: "flag", flag, source: "challengeAnswers" };
     }
   }
 
   const publication = getPublication(request);
-  if (!publication) return { status: "none" };
-
-  for (const [source, candidate] of [
-    ["comment.flag", publication.flag],
-    ["comment.flair", publication.flair],
-  ] as const) {
-    const flag = parseFiveChanFlagSelection(candidate);
-    if (flag) return { status: "flag", flag, source };
-    if (hasExplicitFlagSelection(candidate)) {
-      return { status: "invalid", value: candidate, source };
+  if (publication) {
+    candidates.push(["comment.flag", publication.flag]);
+    if (looksLikeFlagRequest(publication.flair)) {
+      candidates.push(["comment.flair", publication.flair]);
     }
-  }
-
-  if (Array.isArray(publication.flairs)) {
-    for (const flair of publication.flairs) {
-      const flag = parseFiveChanFlagSelection(flair);
-      if (flag) return { status: "flag", flag, source: "comment.flairs" };
-      if (hasExplicitFlagSelection(flair)) {
-        return { status: "invalid", value: flair, source: "comment.flairs" };
+    if (Array.isArray(publication.flairs)) {
+      for (const flair of publication.flairs) {
+        if (looksLikeFlagRequest(flair)) {
+          candidates.push(["comment.flairs", flair]);
+        }
       }
     }
   }
 
-  return { status: "none" };
+  let requested:
+    | { flag: RequestedFlag; source: RequestedFlagSource }
+    | undefined;
+  for (const [source, candidate] of candidates) {
+    const flag = parseFiveChanFlagSelection(candidate);
+    if (!flag) {
+      if (!hasExplicitFlagSelection(candidate)) continue;
+      return { status: "invalid", value: candidate, source };
+    }
+    // Board-choice flags are shown from the comment's own flag fields and
+    // this challenge adds nothing for them, so a challenge answer alone
+    // would leave the comment without that flag.
+    if (source === "challengeAnswers" && flag.type !== "country") continue;
+    // A comment carries one flag. Every flag request is checked, so a second,
+    // different flag cannot reach the comment without being validated.
+    if (requested && requested.flag.text !== flag.text) {
+      return { status: "invalid", value: candidate, source };
+    }
+    if (!requested) requested = { flag, source };
+  }
+
+  return requested ? { status: "flag", ...requested } : { status: "none" };
 };
 
 export const getRequestedFlag = (

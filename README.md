@@ -100,6 +100,8 @@ Supported 5chan request strings:
 - `flag:pol:AC`
 - `flag:pony:AJ`
 
+Flairs that are not flag requests, such as a topic flair `{ text: "flash:game" }`, are ignored. A flair counts as a flag request when its text uses the syntax above (`flag:...` or a flag family prefix such as `pol:`) or it has a `type` or `kind`. A comment carries one flag: every flag request on it is checked, and a comment that requests two different flags is rejected.
+
 Country flags use `auto` because the issuer service must derive the country from the challenge iframe request IP. The challenge does not trust a client-provided country code as proof of location. `/pol/` memeflags and `/mlp/` pony flags are free user choices, so they do not require the iframe flow.
 
 ## Verified Comment Shape
