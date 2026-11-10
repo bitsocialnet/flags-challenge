@@ -11,7 +11,7 @@ For issuer-verified country flags, the challenge writes two pieces of data:
 - immutable comment data under a client namespace such as `comment["5chan"]`;
 - a compatibility mirror under `commentUpdate.author.community.flairs`, so clients that already render author flairs can show the same flag.
 
-For `/pol/` memeflags and `/mlp/` pony flags, clients should publish the selected flag as normal comment flair data. The challenge validates that the requested family is allowed and that the code is known, then accepts the publication without contacting the issuer service.
+For `/pol/` memeflags and `/mlp/` pony flags, clients should publish the selected flag as normal comment flair data. The challenge validates that the requested family is allowed and that the code is known, then accepts the publication without contacting the issuer service. A memeflag or pony flag sent only as a challenge answer is ignored, because it would not appear on the comment.
 
 The namespace is configurable. For example, a future Seedit profile could write to `comment["seedit"]` while using its own issuer and flag metadata.
 
@@ -57,7 +57,7 @@ Boards can restrict flag families:
 ];
 ```
 
-Boards where every post must carry a flag, such as `/pol/`, also set `requireFlag`. Without it, a client that omits the flag request is accepted. Comment edits and other non-comment publications are not affected.
+Boards where every post must carry a flag, such as `/pol/`, also set `requireFlag`. Without it, a client that omits the flag request is accepted. A comment edit that sets `flairs` replaces the comment's flairs, so it must include a flag too; other edits and non-comment publications are not affected.
 
 ```js
 [

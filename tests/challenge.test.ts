@@ -224,6 +224,27 @@ describe("5chan flag selection parsing", () => {
     });
   });
 
+  it("ignores board-choice flags sent only as challenge answers", () => {
+    expect(
+      getRequestedFlagResult(
+        createChallengeAnswerRequest("bitsocial-flags:5chan:flag:pol:AC"),
+      ),
+    ).toEqual({ status: "none" });
+    expect(
+      getRequestedFlagResult({
+        challengeAnswers: ["bitsocial-flags:5chan:flag:pol:AC"],
+        comment: {
+          content: "flag answer and flair",
+          flairs: [{ text: "flag:pony:AJ" }],
+        },
+      } as DecryptedChallengeRequestMessageTypeWithCommunityAuthor),
+    ).toMatchObject({
+      status: "flag",
+      source: "comment.flairs",
+      flag: { type: "pony", code: "AJ" },
+    });
+  });
+
   it("reports invalid explicit flag requests in comment flairs", () => {
     expect(
       getRequestedFlagResult(createReplyRequest([{ text: "flag:pony:NOPE" }])),
@@ -319,6 +340,64 @@ describe("Bitsocial flags challenge package", () => {
         { requireFlag: true },
       ),
     ).resolves.toEqual({ success: true });
+  });
+
+  it("rejects board-choice flags sent only as challenge answers when requireFlag is enabled", async () => {
+    for (const answer of [
+      "bitsocial-flags:5chan:flag:pol:AC",
+      "bitsocial-flags:5chan:flag:pony:AJ",
+    ]) {
+      await expect(
+        runChallenge(createChallengeAnswerRequest(answer), {
+          requireFlag: true,
+        }),
+      ).resolves.toEqual({
+        success: false,
+        error: "Flag verification failed. A flag is required on this board.",
+      });
+    }
+
+    await expect(
+      runChallenge(
+        {
+          challengeAnswers: ["bitsocial-flags:5chan:flag:pol:AC"],
+          comment: {
+            content: "flag answer and flair",
+            flairs: [{ text: "flag:pol:AC" }],
+          },
+        } as DecryptedChallengeRequestMessageTypeWithCommunityAuthor,
+        { requireFlag: true },
+      ),
+    ).resolves.toEqual({ success: true });
+  });
+
+  it("requires a flag on comment edits that replace flairs when requireFlag is enabled", async () => {
+    const createFlairsEditRequest = (flairs: unknown[]) =>
+      ({
+        commentEdit: {
+          commentCid: "comment-cid",
+          flairs,
+          signature: {
+            publicKey: "author-public-key-1",
+            signature: "comment-edit-signature-1",
+          },
+        },
+      }) as DecryptedChallengeRequestMessageTypeWithCommunityAuthor;
+
+    await expect(
+      runChallenge(createFlairsEditRequest([]), { requireFlag: true }),
+    ).resolves.toEqual({
+      success: false,
+      error: "Flag verification failed. A flag is required on this board.",
+    });
+    await expect(
+      runChallenge(createFlairsEditRequest([{ text: "flag:pol:AN" }]), {
+        requireFlag: true,
+      }),
+    ).resolves.toEqual({ success: true });
+    await expect(runChallenge(createFlairsEditRequest([]))).resolves.toEqual({
+      success: true,
+    });
   });
 
   it("rejects malformed explicit flag requests", async () => {

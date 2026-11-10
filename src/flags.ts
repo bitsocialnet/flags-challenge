@@ -300,9 +300,14 @@ export const getRequestedFlagResult = (
       }
 
       const flag = parseFiveChanFlagSelection(answer);
-      return flag
-        ? { status: "flag", flag, source: "challengeAnswers" }
-        : { status: "invalid", value: answer, source: "challengeAnswers" };
+      if (!flag) {
+        return { status: "invalid", value: answer, source: "challengeAnswers" };
+      }
+      // Board-choice flags are shown from the comment's own flag fields and
+      // this challenge adds nothing for them, so a challenge answer alone
+      // would leave the comment without that flag.
+      if (flag.type !== "country") continue;
+      return { status: "flag", flag, source: "challengeAnswers" };
     }
   }
 
