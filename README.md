@@ -227,4 +227,4 @@ Equivalent npm CLI command:
 npm trust github @bitsocial/flags-challenge --repo bitsocialnet/flags-challenge --file publish.yml
 ```
 
-Future releases publish automatically when `package.json` version changes on `master`. The publish workflow skips versions that already exist on npm.
+Future releases publish automatically when `package.json` version changes on `master`. The publish workflow skips versions that already exist on npm. The release commit must not carry `[skip ci]`: GitHub skips push-triggered workflows for it, so the publish workflow would not run.
