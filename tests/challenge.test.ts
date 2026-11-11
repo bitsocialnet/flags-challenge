@@ -264,6 +264,14 @@ describe("5chan flag selection parsing", () => {
     ).toEqual({ status: "none" });
     expect(
       getRequestedFlagResult(
+        createReplyRequest([
+          { text: "flash:game", type: "topic" },
+          { text: "Meta", kind: "tag" },
+        ]),
+      ),
+    ).toEqual({ status: "none" });
+    expect(
+      getRequestedFlagResult(
         createReplyRequest([{ text: "flash:game" }, { text: "flag:pol:AC" }]),
       ),
     ).toMatchObject({
@@ -271,6 +279,11 @@ describe("5chan flag selection parsing", () => {
       source: "comment.flairs",
       flag: { type: "pol", code: "AC" },
     });
+    expect(
+      getRequestedFlagResult(
+        createReplyRequest([{ text: "Applejack", kind: "mlp", code: "NOPE" }]),
+      ),
+    ).toMatchObject({ status: "invalid", source: "comment.flairs" });
   });
 
   it("checks every flag request on a publication, not just the first", () => {
@@ -463,6 +476,9 @@ describe("Bitsocial flags challenge package", () => {
   it("treats flairs that are not flag requests as no flag", async () => {
     await expect(
       runChallenge(createReplyRequest([{ text: "flash:game" }])),
+    ).resolves.toEqual({ success: true });
+    await expect(
+      runChallenge(createReplyRequest([{ text: "flash:game", type: "topic" }])),
     ).resolves.toEqual({ success: true });
     await expect(
       runChallenge(
