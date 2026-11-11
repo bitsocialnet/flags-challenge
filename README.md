@@ -57,7 +57,7 @@ Boards can restrict flag families:
 ];
 ```
 
-Boards where every post must carry a flag, such as `/pol/`, also set `requireFlag`. Without it, a client that omits the flag request is accepted. A comment edit that sets `flairs` replaces the comment's flairs, so it must include a flag too; other edits and non-comment publications are not affected.
+Boards where every post must carry a flag, such as `/pol/`, also set `requireFlag`. Without it, a client that omits the flag request is accepted. A comment edit that sets `flairs` replaces the comment's flairs, so those flairs must include a flag too; other edits and non-comment publications are not affected. A country flag sent only as a challenge answer counts only on new comments, because pkc-js keeps the challenge's verified flag only for them.
 
 ```js
 [
