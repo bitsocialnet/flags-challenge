@@ -281,9 +281,9 @@ const hasExplicitFlagSelection = (value: unknown) => {
 const FLAG_REQUEST_PREFIX_PATTERN =
   /^(?:bitsocial-flags:5chan:)?(?:flag|country|geo|pol|political|meme|memeflag|memeflags|pony|mlp):/i;
 
-// Flair fields also hold ordinary flairs (topic tags and the like); only
-// values written in flag request syntax, or naming a flag type, are flag
-// requests.
+// Flair fields also hold ordinary flairs (topic tags and the like, possibly
+// with their own type); only values written in flag request syntax, or whose
+// type or kind names a flag family, are flag requests.
 const looksLikeFlagRequest = (value: unknown): boolean => {
   if (typeof value === "string") {
     return FLAG_REQUEST_PREFIX_PATTERN.test(value.trim());
@@ -291,8 +291,8 @@ const looksLikeFlagRequest = (value: unknown): boolean => {
   if (!isRecord(value)) return false;
   return (
     looksLikeFlagRequest(value.text) ||
-    stringValue(value.type) !== undefined ||
-    stringValue(value.kind) !== undefined
+    normalizeKind(stringValue(value.type)) !== undefined ||
+    normalizeKind(stringValue(value.kind)) !== undefined
   );
 };
 

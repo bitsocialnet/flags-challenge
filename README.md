@@ -115,7 +115,7 @@ challengeRequest: {
 
 The challenge works on both node versions. It reads the flag from, in order: its own pre-answer (`challengeAnswer`, passed by pkc-js 0.0.152+), any other prefixed pre-answer in `challengeAnswers` (array or record), then the comment's `flag`, `flair` and `flairs`. Pre-answers without the prefix are ignored.
 
-Flairs that are not flag requests, such as a topic flair `{ text: "flash:game" }`, are ignored. A flair counts as a flag request when its text uses the syntax above (`flag:...` or a flag family prefix such as `pol:`) or it has a `type` or `kind`. A comment carries one flag: every flag request on it is checked, and a comment that requests two different flags is rejected.
+Flairs that are not flag requests, such as a topic flair `{ text: "flash:game" }`, are ignored. A flair counts as a flag request when its text uses the syntax above (`flag:...` or a flag family prefix such as `pol:`) or its `type` or `kind` names a flag family (`country`, `pol`, `pony` or an alias such as `memeflag` or `mlp`). A comment carries one flag: every flag request on it is checked, and a comment that requests two different flags is rejected.
 
 Country flags use `auto` because the issuer service must derive the country from the challenge iframe request IP. The challenge does not trust a client-provided country code as proof of location. `/pol/` memeflags and `/mlp/` pony flags are free user choices, so they do not require the iframe flow.
 
