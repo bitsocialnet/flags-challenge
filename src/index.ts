@@ -170,6 +170,18 @@ const getRequestPublication = (
   return undefined;
 };
 
+// New posts and replies must carry a flag. An edit that sets flairs replaces
+// the comment's flairs, so it must keep a flag too; other edits and
+// publications leave the flag alone.
+const mustCarryFlag = (request: unknown) => {
+  const publicationInfo = getRequestPublication(request);
+  if (publicationInfo?.publicationType === "comment") return true;
+  return (
+    publicationInfo?.publicationType === "commentEdit" &&
+    Array.isArray(publicationInfo.publication.flairs)
+  );
+};
+
 const getChallengeAnswers = (request: unknown): unknown[] =>
   isRecord(request) && Array.isArray(request.challengeAnswers)
     ? request.challengeAnswers
@@ -423,8 +435,7 @@ const getChallenge = async (
   );
 
   if (requestedFlagResult.status === "none") {
-    // Only new posts and replies carry a flag; edits and other publications are not flag requests.
-    if (options.requireFlag && requestSummary.publicationType === "comment") {
+    if (options.requireFlag && mustCarryFlag(challengeRequestMessage)) {
       logError(
         "No requested flag found on a board that requires one; rejecting. community=%s request=%o",
         communityLabel,
