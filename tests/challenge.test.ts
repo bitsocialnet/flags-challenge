@@ -245,6 +245,34 @@ describe("5chan flag selection parsing", () => {
     });
   });
 
+  it("ignores challenge-answer flags on publications other than new comments", () => {
+    expect(
+      getRequestedFlagResult({
+        challengeAnswers: ["bitsocial-flags:5chan:flag:country:auto"],
+        commentEdit: { commentCid: "comment-cid", flairs: [] },
+      } as unknown as DecryptedChallengeRequestMessageTypeWithCommunityAuthor),
+    ).toEqual({ status: "none" });
+    expect(
+      getRequestedFlagResult({
+        challengeAnswers: ["bitsocial-flags:5chan:flag:country:auto"],
+        commentEdit: {
+          commentCid: "comment-cid",
+          flairs: [{ text: "flag:country:auto" }],
+        },
+      } as unknown as DecryptedChallengeRequestMessageTypeWithCommunityAuthor),
+    ).toMatchObject({
+      status: "flag",
+      source: "comment.flairs",
+      flag: { type: "country", code: "AUTO" },
+    });
+    expect(
+      getRequestedFlagResult({
+        challengeAnswers: ["bitsocial-flags:5chan:flag:country:zz9"],
+        commentEdit: { commentCid: "comment-cid" },
+      } as unknown as DecryptedChallengeRequestMessageTypeWithCommunityAuthor),
+    ).toMatchObject({ status: "invalid", source: "challengeAnswers" });
+  });
+
   it("reports invalid explicit flag requests in comment flairs", () => {
     expect(
       getRequestedFlagResult(createReplyRequest([{ text: "flag:pony:NOPE" }])),
@@ -459,6 +487,20 @@ describe("Bitsocial flags challenge package", () => {
 
     await expect(
       runChallenge(createFlairsEditRequest([]), { requireFlag: true }),
+    ).resolves.toEqual({
+      success: false,
+      error: "Flag verification failed. A flag is required on this board.",
+    });
+    // pkc-js keeps the challenge's verified flag only for new comments, so a
+    // country flag sent only as a challenge answer would not reach the edit.
+    await expect(
+      runChallenge(
+        {
+          ...createFlairsEditRequest([]),
+          challengeAnswers: ["bitsocial-flags:5chan:flag:country:auto"],
+        },
+        { requireFlag: true },
+      ),
     ).resolves.toEqual({
       success: false,
       error: "Flag verification failed. A flag is required on this board.",

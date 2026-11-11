@@ -344,10 +344,17 @@ export const getRequestedFlagResult = (
       if (!hasExplicitFlagSelection(candidate)) continue;
       return { status: "invalid", value: candidate, source };
     }
-    // Board-choice flags are shown from the comment's own flag fields and
-    // this challenge adds nothing for them, so a challenge answer alone
-    // would leave the comment without that flag.
-    if (source === "challengeAnswers" && flag.type !== "country") continue;
+    // A challenge answer alone would leave the publication without that flag
+    // when this challenge cannot attach it: board-choice flags are shown from
+    // the comment's own flag fields and this challenge adds nothing for them,
+    // and pkc-js keeps the verified country flag only for new comments, not
+    // for edits or other publications.
+    if (
+      source === "challengeAnswers" &&
+      (flag.type !== "country" || !isRecord(request.comment))
+    ) {
+      continue;
+    }
     // A comment carries one flag. Every flag request is checked, so a second,
     // different flag cannot reach the comment without being validated.
     if (requested && requested.flag.text !== flag.text) {
