@@ -125,6 +125,7 @@ const runChallenge = (
   request: DecryptedChallengeRequestMessageTypeWithCommunityAuthor,
   optionOverrides: Record<string, unknown> = {},
   runtimeCommunity: unknown = community,
+  challengeAnswer?: string,
 ) => {
   const challengeSettings = settings(optionOverrides);
   const challengeFile = ChallengeFileFactory(challengeSettings);
@@ -133,6 +134,8 @@ const runChallenge = (
     challengeRequestMessage: request,
     challengeIndex: 0,
     community: runtimeCommunity,
+    // pkc-js 0.0.152+ passes challengeAnswer; the dev dependency's types predate it.
+    ...(challengeAnswer !== undefined ? { challengeAnswer } : {}),
   });
 };
 
@@ -223,6 +226,97 @@ describe("5chan flag selection parsing", () => {
       },
     });
   });
+
+  it.each([
+    [
+      "array",
+      ["captcha-answer", "", "bitsocial-flags:5chan:flag:country:auto"],
+    ],
+    [
+      "record",
+      { "0": "captcha-answer", "2": "bitsocial-flags:5chan:flag:country:auto" },
+    ],
+  ])(
+    "reads flag challenge answers from the %s shape before comment flairs",
+    (_shape, challengeAnswers) => {
+      expect(
+        getRequestedFlagResult({
+          challengeAnswers,
+          comment: {
+            content: "flag answer and flair",
+            flairs: [{ text: "flag:country:auto" }],
+          },
+        } as unknown as DecryptedChallengeRequestMessageTypeWithCommunityAuthor),
+      ).toMatchObject({
+        status: "flag",
+        source: "challengeAnswers",
+        flag: { type: "country", code: "AUTO" },
+      });
+    },
+  );
+
+  it("prefers this challenge's own prefixed challengeAnswer over other pre-answers", () => {
+    const request = {
+      challengeAnswers: {
+        "0": "bitsocial-flags:5chan:flag:pol:AC",
+        "3": "bitsocial-flags:5chan:flag:country:auto",
+      },
+      comment: { content: "own answer" },
+    } as unknown as DecryptedChallengeRequestMessageTypeWithCommunityAuthor;
+
+    expect(
+      getRequestedFlagResult(
+        request,
+        "bitsocial-flags:5chan:flag:country:auto",
+      ),
+    ).toMatchObject({
+      status: "flag",
+      source: "challengeAnswers",
+      flag: { type: "country", code: "AUTO" },
+    });
+    expect(
+      getRequestedFlag(request, "bitsocial-flags:5chan:flag:country:auto"),
+    ).toMatchObject({ type: "country", code: "AUTO" });
+  });
+
+  it("ignores a challengeAnswer without the flag prefix", () => {
+    expect(
+      getRequestedFlagResult(
+        {
+          challengeAnswers: { "1": "flag:country:auto" },
+          comment: { content: "unprefixed answer", flair: "flag:pol:AN" },
+        } as unknown as DecryptedChallengeRequestMessageTypeWithCommunityAuthor,
+        "flag:country:auto",
+      ),
+    ).toMatchObject({
+      status: "flag",
+      source: "comment.flair",
+      flag: { type: "pol", code: "AN" },
+    });
+  });
+
+  it.each([
+    ["comment.flag", { flag: "flag:pol:AC" }],
+    ["comment.flair", { flair: "flag:pol:AC" }],
+    ["comment.flairs", { flairs: [{ text: "flag:pol:AC" }] }],
+  ])(
+    "falls back to %s when no challenge answer carries a flag",
+    (source, flagFields) => {
+      expect(
+        getRequestedFlagResult(
+          {
+            challengeAnswers: { "0": "captcha-answer" },
+            comment: { content: "fallback", ...flagFields },
+          } as unknown as DecryptedChallengeRequestMessageTypeWithCommunityAuthor,
+          "captcha-answer",
+        ),
+      ).toMatchObject({
+        status: "flag",
+        source,
+        flag: { type: "pol", code: "AC" },
+      });
+    },
+  );
 
   it("reports invalid explicit flag requests in comment flairs", () => {
     expect(
@@ -369,6 +463,56 @@ describe("Bitsocial flags challenge package", () => {
         publicKey: expect.any(Uint8Array),
         signature: expect.any(Uint8Array),
       },
+    });
+  });
+
+  it("creates the country iframe from a record-shaped pre-answer on a requireFlag board", async () => {
+    const answer = "bitsocial-flags:5chan:flag:country:auto";
+    const request = {
+      challengeAnswers: { "1": answer },
+      comment: {
+        content: "pkc-js 0.0.152 pre-answer",
+        signature: {
+          publicKey: "author-public-key-1",
+          signature: "comment-signature-1",
+        },
+      },
+    } as unknown as DecryptedChallengeRequestMessageTypeWithCommunityAuthor;
+
+    for (const challengeAnswer of [answer, undefined]) {
+      const result = await runChallenge(
+        request,
+        { requireFlag: "true" },
+        community,
+        challengeAnswer,
+      );
+
+      if (!("challenge" in result))
+        throw new Error("Expected challenge result");
+      expect(getLazyChallengeParts(result.challenge).payload).toMatchObject({
+        requestedFlag: { type: "country", code: "AUTO" },
+      });
+    }
+  });
+
+  it("uses the challengeAnswer passed to getChallenge over a flag pre-answer under another key", async () => {
+    const ownAnswer = "bitsocial-flags:5chan:flag:country:auto";
+    const result = await runChallenge(
+      {
+        challengeAnswers: {
+          "0": "bitsocial-flags:5chan:flag:pol:AC",
+          "1": ownAnswer,
+        },
+        comment: { content: "two flag pre-answers" },
+      } as unknown as DecryptedChallengeRequestMessageTypeWithCommunityAuthor,
+      {},
+      community,
+      ownAnswer,
+    );
+
+    if (!("challenge" in result)) throw new Error("Expected challenge result");
+    expect(getLazyChallengeParts(result.challenge).payload).toMatchObject({
+      requestedFlag: { type: "country", code: "AUTO" },
     });
   });
 

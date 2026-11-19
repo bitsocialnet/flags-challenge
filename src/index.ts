@@ -12,6 +12,7 @@ import { fromString as uint8ArrayFromString } from "uint8arrays/from-string";
 import { z } from "zod";
 import {
   createFiveChanAssertion,
+  getChallengeAnswerValues,
   getRequestedFlag,
   getRequestedFlagResult,
   normalizeVerifiedFlag,
@@ -171,9 +172,13 @@ const getRequestPublication = (
 };
 
 const getChallengeAnswers = (request: unknown): unknown[] =>
-  isRecord(request) && Array.isArray(request.challengeAnswers)
-    ? request.challengeAnswers
-    : [];
+  isRecord(request) ? getChallengeAnswerValues(request.challengeAnswers) : [];
+
+const getChallengeAnswersShape = (request: unknown) => {
+  const challengeAnswers = recordValue(request)?.challengeAnswers;
+  if (Array.isArray(challengeAnswers)) return "array";
+  return isRecord(challengeAnswers) ? "record" : "none";
+};
 
 const hasDefinedProperty = (
   record: Record<string, unknown> | undefined,
@@ -188,7 +193,10 @@ const hasExplicitFlagAnswer = (answer: unknown) =>
   typeof answer === "string" &&
   answer.trim().toLowerCase().startsWith(FLAG_CHALLENGE_ANSWER_PREFIX);
 
-const summarizeChallengeRequest = (request: unknown) => {
+const summarizeChallengeRequest = (
+  request: unknown,
+  challengeAnswer: unknown,
+) => {
   const requestRecord = recordValue(request);
   const challengeAnswers = getChallengeAnswers(request);
   const publicationInfo = getRequestPublication(request);
@@ -200,9 +208,12 @@ const summarizeChallengeRequest = (request: unknown) => {
   return {
     hasComment: Boolean(recordValue(requestRecord?.comment)),
     hasCommentEdit: Boolean(recordValue(requestRecord?.commentEdit)),
+    challengeAnswersShape: getChallengeAnswersShape(request),
     challengeAnswerCount: challengeAnswers.length,
     explicitFlagAnswerCount: challengeAnswers.filter(hasExplicitFlagAnswer)
       .length,
+    hasOwnChallengeAnswer: challengeAnswer !== undefined,
+    ownChallengeAnswerIsFlag: hasExplicitFlagAnswer(challengeAnswer),
     publicationType: publicationInfo?.publicationType,
     hasPublicationFlag: hasDefinedProperty(publication, "flag"),
     hasPublicationFlair: hasDefinedProperty(publication, "flair"),
@@ -410,11 +421,20 @@ const getChallenge = async (
   args: GetChallengeArgs,
 ): Promise<ChallengeInput | ChallengeResultInput> => {
   const { challengeRequestMessage, challengeSettings } = args;
+  // pkc-js 0.0.152+ passes this challenge's own pre-answer; older nodes and the
+  // pkc-js dev dependency's types do not have it.
+  const challengeAnswer = (args as Record<string, unknown>).challengeAnswer;
   const options = parseOptions(challengeSettings);
   const runtimeCommunity = getRuntimeCommunity(args);
   const communityLabel = getCommunityLabel(runtimeCommunity);
-  const requestSummary = summarizeChallengeRequest(challengeRequestMessage);
-  const requestedFlagResult = getRequestedFlagResult(challengeRequestMessage);
+  const requestSummary = summarizeChallengeRequest(
+    challengeRequestMessage,
+    challengeAnswer,
+  );
+  const requestedFlagResult = getRequestedFlagResult(
+    challengeRequestMessage,
+    challengeAnswer,
+  );
   logInfo(
     "getChallenge community=%s allowedFlags=%o request=%o",
     communityLabel,

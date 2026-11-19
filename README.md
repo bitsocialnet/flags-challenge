@@ -100,6 +100,21 @@ Supported 5chan request strings:
 - `flag:pol:AC`
 - `flag:pony:AJ`
 
+A client can also pre-answer this challenge with a request string prefixed by `bitsocial-flags:5chan:`. On pkc-js 0.0.152 and later, `challengeAnswers` is a record keyed by the challenge's index in `community.challenges`; on 0.0.151 and older it is a positional array, and the challenge finds the answer in any slot:
+
+```js
+// pkc-js 0.0.152+, with this challenge at index 1
+challengeRequest: {
+  challengeAnswers: { 1: "bitsocial-flags:5chan:flag:country:auto" },
+}
+// pkc-js 0.0.151 and older
+challengeRequest: {
+  challengeAnswers: ["bitsocial-flags:5chan:flag:country:auto"],
+}
+```
+
+The challenge works on both node versions. It reads the flag from, in order: its own pre-answer (`challengeAnswer`, passed by pkc-js 0.0.152+), any other prefixed pre-answer in `challengeAnswers` (array or record), then the comment's `flag`, `flair` and `flairs`. Pre-answers without the prefix are ignored.
+
 Country flags use `auto` because the issuer service must derive the country from the challenge iframe request IP. The challenge does not trust a client-provided country code as proof of location. `/pol/` memeflags and `/mlp/` pony flags are free user choices, so they do not require the iframe flow.
 
 ## Verified Comment Shape
