@@ -244,7 +244,7 @@ describe("5chan flag selection parsing", () => {
           challengeAnswers,
           comment: {
             content: "flag answer and flair",
-            flairs: [{ text: "flag:pol:AC" }],
+            flairs: [{ text: "flag:country:auto" }],
           },
         } as unknown as DecryptedChallengeRequestMessageTypeWithCommunityAuthor),
       ).toMatchObject({
