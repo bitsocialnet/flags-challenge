@@ -290,20 +290,33 @@ const getPublication = (
   return undefined;
 };
 
+// pkc-js 0.0.151 and older send pre-answers as a positional array; 0.0.152+
+// sends a record keyed by challenge index.
+export const getChallengeAnswerValues = (
+  challengeAnswers: unknown,
+): unknown[] => {
+  if (Array.isArray(challengeAnswers)) return challengeAnswers;
+  return isRecord(challengeAnswers) ? Object.values(challengeAnswers) : [];
+};
+
+// `challengeAnswer` is this challenge's own pre-answer, which pkc-js 0.0.152+
+// passes to getChallenge. Older nodes do not, so every pre-answer is scanned too.
 export const getRequestedFlagResult = (
   request: DecryptedChallengeRequestMessageTypeWithCommunityAuthor,
+  challengeAnswer?: unknown,
 ): RequestedFlagResult => {
-  if (Array.isArray(request.challengeAnswers)) {
-    for (const answer of request.challengeAnswers) {
-      if (!hasExplicitFlagChallengeAnswer(answer)) {
-        continue;
-      }
-
-      const flag = parseFiveChanFlagSelection(answer);
-      return flag
-        ? { status: "flag", flag, source: "challengeAnswers" }
-        : { status: "invalid", value: answer, source: "challengeAnswers" };
+  for (const answer of [
+    challengeAnswer,
+    ...getChallengeAnswerValues(request.challengeAnswers),
+  ]) {
+    if (!hasExplicitFlagChallengeAnswer(answer)) {
+      continue;
     }
+
+    const flag = parseFiveChanFlagSelection(answer);
+    return flag
+      ? { status: "flag", flag, source: "challengeAnswers" }
+      : { status: "invalid", value: answer, source: "challengeAnswers" };
   }
 
   const publication = getPublication(request);
@@ -335,8 +348,9 @@ export const getRequestedFlagResult = (
 
 export const getRequestedFlag = (
   request: DecryptedChallengeRequestMessageTypeWithCommunityAuthor,
+  challengeAnswer?: unknown,
 ): RequestedFlag | undefined => {
-  const result = getRequestedFlagResult(request);
+  const result = getRequestedFlagResult(request, challengeAnswer);
   return result.status === "flag" ? result.flag : undefined;
 };
 
