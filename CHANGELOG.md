@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.4 (2026-11-19)
+
+### Bug Fixes
+
+- **flags:** read flag pre-answers from index-keyed challenge answers ([#6](https://github.com/bitsocialnet/flags-challenge/issues/6))
+
 ## [0.1.3](https://github.com/bitsocialnet/flags-challenge/compare/v0.1.2...v0.1.3) (2026-10-17)
 
 ### Features
