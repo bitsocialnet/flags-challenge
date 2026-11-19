@@ -495,6 +495,27 @@ describe("Bitsocial flags challenge package", () => {
     }
   });
 
+  it("uses the challengeAnswer passed to getChallenge over a flag pre-answer under another key", async () => {
+    const ownAnswer = "bitsocial-flags:5chan:flag:country:auto";
+    const result = await runChallenge(
+      {
+        challengeAnswers: {
+          "0": "bitsocial-flags:5chan:flag:pol:AC",
+          "1": ownAnswer,
+        },
+        comment: { content: "two flag pre-answers" },
+      } as unknown as DecryptedChallengeRequestMessageTypeWithCommunityAuthor,
+      {},
+      community,
+      ownAnswer,
+    );
+
+    if (!("challenge" in result)) throw new Error("Expected challenge result");
+    expect(getLazyChallengeParts(result.challenge).payload).toMatchObject({
+      requestedFlag: { type: "country", code: "AUTO" },
+    });
+  });
+
   it("emits immutable 5chan country data and mirrored author flairs after verification", async () => {
     const result = await runChallenge(
       createCommentRequest({
