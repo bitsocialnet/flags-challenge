@@ -433,9 +433,8 @@ const getChallenge = async (
   args: GetChallengeArgs,
 ): Promise<ChallengeInput | ChallengeResultInput> => {
   const { challengeRequestMessage, challengeSettings } = args;
-  // pkc-js 0.0.152+ passes this challenge's own pre-answer; older nodes and the
-  // pkc-js dev dependency's types do not have it.
-  const challengeAnswer = (args as Record<string, unknown>).challengeAnswer;
+  // pkc-js 0.0.152+ passes this challenge's own pre-answer; older nodes do not.
+  const challengeAnswer = args.challengeAnswer;
   const options = parseOptions(challengeSettings);
   const runtimeCommunity = getRuntimeCommunity(args);
   const communityLabel = getCommunityLabel(runtimeCommunity);

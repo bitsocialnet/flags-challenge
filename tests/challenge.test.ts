@@ -134,7 +134,6 @@ const runChallenge = (
     challengeRequestMessage: request,
     challengeIndex: 0,
     community: runtimeCommunity,
-    // pkc-js 0.0.152+ passes challengeAnswer; the dev dependency's types predate it.
     ...(challengeAnswer !== undefined ? { challengeAnswer } : {}),
   });
 };
