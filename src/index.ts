@@ -28,7 +28,7 @@ import {
 } from "./schema.js";
 import { signBufferEd25519 } from "./pkc-js-signer.js";
 
-const log = Logger("bitsocial:community:challenge:flags");
+const log = Logger({ namespace: "bitsocial:community:challenge:flags" });
 const LOGGER_NAMESPACE = "bitsocial:community:challenge:flags";
 const FLAG_CHALLENGE_ANSWER_PREFIX = "bitsocial-flags:5chan:";
 const LEGACY_RUNTIME_COMMUNITY_KEY = String.fromCharCode(
